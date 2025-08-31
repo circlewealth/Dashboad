@@ -1571,6 +1571,7 @@ function handleInceptionDate(req, res, index) {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on host 0.0.0.0 and port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV}`);
 });
 
 // Close database connections on exit
