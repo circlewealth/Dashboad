@@ -1,6 +1,19 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:3001/api';
+// Use relative URL in production, fallback to localhost for development
+// Check if we're in a production environment by looking at the URL
+const isProduction = () => {
+  if (typeof window !== 'undefined') {
+    return window.location.hostname !== 'localhost' && 
+           !window.location.hostname.includes('127.0.0.1');
+  }
+  return false;
+};
+
+// Use the local Express server for development and the deployed Render URL for production
+const API_URL = isProduction() 
+  ? 'https://circle-wealth-api.onrender.com/api' 
+  : 'http://localhost:3001/api';
 
 export interface HistoricalDataPoint {
   date: string;
@@ -334,4 +347,4 @@ class ApiService {
   }
 }
 
-export const apiService = new ApiService(); 
+export const apiService = new ApiService();

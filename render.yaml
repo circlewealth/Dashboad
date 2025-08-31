@@ -1,0 +1,32 @@
+services:
+  # Backend API service
+  - type: web
+    name: circle-wealth-api
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+    healthCheckPath: /api/market-indices
+    autoDeploy: true
+
+  # Frontend service
+  - type: web
+    name: circle-wealth-frontend
+    env: static
+    buildCommand: npm run render-build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://circle-wealth-api.onrender.com/api/*
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_ENV
+        value: production
+    autoDeploy: true
