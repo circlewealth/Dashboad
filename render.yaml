@@ -5,6 +5,7 @@ services:
     env: node
     buildCommand: npm install
     startCommand: node server.js
+    runtime: node
     envVars:
       - key: NODE_ENV
         value: production

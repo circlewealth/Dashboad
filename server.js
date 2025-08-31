@@ -1,9 +1,17 @@
-const express = require('express');
-const cors = require('cors');
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-const yahooFinance = require('yahoo-finance2').default;
-const { parse } = require('url');
+import express from 'express';
+import cors from 'cors';
+import sqlite3 from 'sqlite3';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import yahooFinance from 'yahoo-finance2';
+import { parse } from 'url';
+
+// Get current directory name (ESM equivalent of __dirname)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Enable verbose mode for sqlite3
+sqlite3.verbose();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -51,7 +59,7 @@ app.get('/api/:endpoint', (req, res) => {
 });
 
 // Database connections
-const indexDB = new sqlite3.Database('./database.db', sqlite3.OPEN_READONLY, (err) => {
+const indexDB = new sqlite3.Database(path.join(__dirname, './database.db'), sqlite3.OPEN_READONLY, (err) => {
   if (err) {
     console.error('Error opening index database:', err.message);
   } else {
@@ -59,7 +67,7 @@ const indexDB = new sqlite3.Database('./database.db', sqlite3.OPEN_READONLY, (er
   }
 });
 
-const returnsDB = new sqlite3.Database('./final.db', sqlite3.OPEN_READONLY, (err) => {
+const returnsDB = new sqlite3.Database(path.join(__dirname, './final.db'), sqlite3.OPEN_READONLY, (err) => {
   if (err) {
     console.error('Error opening returns database:', err.message);
   } else {
@@ -1561,13 +1569,13 @@ function handleInceptionDate(req, res, index) {
   return res.json({ inceptionDate });
 }
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on host 0.0.0.0 and port ${PORT}`);
 });
 
 // Close database connections on exit
 process.on('SIGINT', () => {
-  indexDB.close();
-  returnsDB.close();
+  if (indexDB) indexDB.close();
+  if (returnsDB) returnsDB.close();
   process.exit(0);
 });
