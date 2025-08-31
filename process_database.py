@@ -136,7 +136,7 @@ def main():
         start_total = time.time()
         
         # Read from input database
-        input_db = "D:/project 3/project 3/database.db"
+        input_db = "./database.db"
         print(f"Reading from database {input_db}...")
         
         # Connect to input database
@@ -175,7 +175,7 @@ def main():
             final_result_df = pd.concat([header_df, final_result_df], ignore_index=True)
             
             # Save to output database
-            output_db = "D:/project 3/project 3/final.db"
+            output_db = "./final.db"
             engine = create_engine(f'sqlite:///{output_db}')
             final_result_df.to_sql('returns', engine, if_exists='replace', index=False)
             

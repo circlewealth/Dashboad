@@ -1060,6 +1060,74 @@ function getDefaultAllocation(index) {
   return allocations[index] || '0.00%';
 }
 
+// Get inception date (first non-null date) for a specific index
+app.get('/api/inception-date/:index', (req, res) => {
+  const { index } = req.params;
+  
+  const query = `
+    SELECT MIN(Date) as inceptionDate
+    FROM Sheet1 
+    WHERE "${index}" IS NOT NULL
+  `;
+  
+  indexDB.get(query, [], (err, row) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    
+    res.json({ inceptionDate: row?.inceptionDate || null });
+  });
+});
+
+// Get inception dates for all indices
+app.get('/api/inception-dates', (req, res) => {
+  indexDB.all("PRAGMA table_info(Sheet1)", [], (err, columns) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    
+    const indices = columns
+      .map(col => col.name)
+      .filter(name => name !== 'Date');
+    
+    // Use Promise.all to run all queries in parallel
+    const promises = indices.map(index => {
+      return new Promise((resolve, reject) => {
+        const query = `
+          SELECT MIN(Date) as inceptionDate
+          FROM Sheet1 
+          WHERE "${index}" IS NOT NULL
+        `;
+        
+        indexDB.get(query, [], (err, row) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve({ 
+              index, 
+              inceptionDate: row?.inceptionDate || null 
+            });
+          }
+        });
+      });
+    });
+    
+    Promise.all(promises)
+      .then(results => {
+        // Convert array of results to object with index names as keys
+        const inceptionDates = results.reduce((acc, result) => {
+          acc[result.index] = result.inceptionDate;
+          return acc;
+        }, {});
+        
+        res.json({ inceptionDates });
+      })
+      .catch(error => {
+        res.status(500).json({ error: error.message });
+      });
+  });
+});
+
 // Serve the React app for any other routes
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));

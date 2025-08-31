@@ -3,9 +3,10 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   Legend, Area, AreaChart, ReferenceLine
 } from 'recharts';
-import { ArrowUpRight, ArrowDownRight, Info, TrendingUp, Search, Filter } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Info, TrendingUp, Search, Filter, Calendar } from 'lucide-react';
 import { indexDataService, type IndexReturn, type IndexStats, type HistoricalDataPoint } from '../services/indexData';
 import { formatChartDate } from '../utils/dateUtils';
+import { apiService } from '../services/api';
 
 // Date formatting function to use Month YY format (e.g., Apr 23)
 const formatToMonthYY = (dateStr: string): string => {
@@ -57,6 +58,7 @@ export const RollingReturnsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showPositiveOnly, setShowPositiveOnly] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [inceptionDates, setInceptionDates] = useState<Record<string, string>>({});
 
   useEffect(() => {
     // Load initial data
@@ -70,6 +72,10 @@ export const RollingReturnsPage: React.FC = () => {
         
         const periodReturns = await indexDataService.getAllReturnsForPeriod(selectedPeriod);
         setReturns(periodReturns);
+        
+        // Fetch inception dates
+        const dates = await apiService.getInceptionDates();
+        setInceptionDates(dates);
         
         // Make sure we have data for NIFTY 50 or use the first available index
         const defaultIndex = allIndices.includes('NIFTY 50') ? 'NIFTY 50' : (allIndices[0] || '');
@@ -158,6 +164,39 @@ export const RollingReturnsPage: React.FC = () => {
   const sortedIndices = [...filteredIndices].sort((a, b) => {
     return (returns[b] || 0) - (returns[a] || 0);
   });
+
+  // Format the inception date
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return 'N/A';
+    try {
+      // Handle dates in MM/DD/YYYY format
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        const month = parseInt(parts[0]) - 1;
+        const day = parseInt(parts[1]);
+        const year = parseInt(parts[2]);
+        const d = new Date(year, month, day);
+        return d.toLocaleDateString('en-US', { 
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric'
+        });
+      }
+      
+      // Fall back to standard date parsing
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr; // Return original if invalid
+      
+      return d.toLocaleDateString('en-US', { 
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (e) {
+      console.warn('Error formatting date:', e);
+      return dateStr; // Return original on error
+    }
+  };
 
   if (loading) {
     return (
@@ -297,6 +336,10 @@ export const RollingReturnsPage: React.FC = () => {
                   {formatReturn(selectedIndexData?.returns[selectedPeriod as keyof typeof selectedIndexData.returns] || 0)}
                 </p>
               </div>
+              <div>
+                <p className="text-sm text-gray-500">Data Points</p>
+                <p className="text-2xl font-bold">{selectedIndexData?.historicalData.length || 0}</p>
+              </div>
             </div>
           </div>
 
@@ -347,33 +390,40 @@ export const RollingReturnsPage: React.FC = () => {
                 </label>
               </div>
             </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {sortedIndices.map((index) => (
-                <button
+                <div
                   key={index}
+                  className="glassmorphic-card p-4 hover:shadow-lg transition-shadow min-h-[120px]"
                   onClick={() => {
                     setSelectedIndex(index);
                     updateSelectedIndexData(index);
                   }}
-                  className={`p-4 rounded-lg transition-all ${
-                    selectedIndex === index
-                      ? 'glassmorphic-light ring-2 ring-blue-500'
-                      : 'glassmorphic hover:bg-gray-100'
-                  }`}
                 >
-                  <h4 className="text-sm font-medium text-gray-600 mb-2">{index}</h4>
-                  <div className="flex items-baseline space-x-2">
-                    <p className={`text-2xl font-bold ${getReturnColor(returns[index] || 0)}`}>
-                      {formatReturn(returns[index] || 0)}
-                    </p>
-                    {(returns[index] || 0) >= 0 ? (
-                      <ArrowUpRight className="text-green-500" size={20} />
-                    ) : (
-                      <ArrowDownRight className="text-red-500" size={20} />
-                    )}
+                  <div className="flex flex-col justify-between h-full">
+                    <div className="flex flex-col">
+                      <h4 className="text-base font-medium mb-1">{index}</h4>
+                      {inceptionDates[index] && (
+                        <div className="flex items-center gap-1 mb-2 text-xs text-gray-500">
+                          <Calendar size={10} />
+                          <span>Since {formatDate(inceptionDates[index])}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center">
+                        <p className="text-xs text-gray-500">Return</p>
+                        <p className={`text-base font-semibold ${getReturnColor(returns[index])}`}>
+                          {formatReturn(returns[index])}
+                        </p>
+                      </div>
+                      <TrendingUp
+                        size={16}
+                        className={`transition-transform duration-300 ${
+                          returns[index] >= 0 ? 'text-green-500 rotate-45' : 'text-red-500 -rotate-45'
+                        }`}
+                      />
+                    </div>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           </div>
@@ -381,4 +431,4 @@ export const RollingReturnsPage: React.FC = () => {
       </div>
     </div>
   );
-}; 
+};

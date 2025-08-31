@@ -310,6 +310,28 @@ class ApiService {
       }
     ];
   }
+
+  // Get inception dates for all indices
+  async getInceptionDates(): Promise<Record<string, string>> {
+    try {
+      const response = await axios.get(`${API_URL}/inception-dates`);
+      return response.data.inceptionDates || {};
+    } catch (error) {
+      console.error('Error fetching inception dates:', error);
+      return {};
+    }
+  }
+
+  // Get inception date for a specific index
+  async getInceptionDate(index: string): Promise<string | null> {
+    try {
+      const response = await axios.get(`${API_URL}/inception-date/${encodeURIComponent(index)}`);
+      return response.data.inceptionDate;
+    } catch (error) {
+      console.error(`Error fetching inception date for ${index}:`, error);
+      return null;
+    }
+  }
 }
 
 export const apiService = new ApiService(); 

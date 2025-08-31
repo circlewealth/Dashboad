@@ -182,6 +182,7 @@ function App() {
   const [marketSentiment, setMarketSentiment] = useState<any>(fallbackSentiment);
   const [selectedIndexTimeSeries, setSelectedIndexTimeSeries] = useState<any[]>([]);
   const timeDropdownRef = useRef<HTMLDivElement>(null);
+  const [inceptionDates, setInceptionDates] = useState<Record<string, string>>({});
 
   // Fetch real-time market data
   useEffect(() => {
@@ -219,12 +220,26 @@ function App() {
       }
     };
 
-    fetchMarketData();
+    const fetchData = async () => {
+      try {
+        fetchMarketData();
+        
+        // Fetch inception dates for all indices
+        const dates = await apiService.getInceptionDates();
+        setInceptionDates(dates);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    };
+    
+    fetchData();
     
     // Refresh data every 5 minutes
-    const intervalId = setInterval(fetchMarketData, 300000);
+    const intervalId = setInterval(fetchData, 300000);
     
-    return () => clearInterval(intervalId);
+    return () => {
+      clearInterval(intervalId);
+    };
   }, []);
 
   const handleIndexCardClick = (name: string) => {
@@ -583,6 +598,7 @@ function App() {
                         isSelected={selectedIndex === name}
                         onClick={() => handleIndexCardClick(name)}
                         change={data.change}
+                        inceptionDate={inceptionDates[name]}
                       />
                     ))}
                   </div>

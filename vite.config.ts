@@ -15,7 +15,7 @@ export default defineConfig({
   },
   server: {
     fs: {
-      allow: ['.', 'D:/project 3/project 3']
+      allow: ['.', '/Users/aryankumar/Desktop/project 5']
     },
     allowedHosts: [
       'primarily-asin-strategy-oops.trycloudflare.com'

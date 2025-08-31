@@ -3,7 +3,9 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, 
   ResponsiveContainer, Legend, Label, ReferenceLine
 } from 'recharts';
-import { Calendar, Filter, ChevronDown, TrendingUp, ArrowDownRight, ArrowUpRight } from 'lucide-react';
+import { Calendar, Filter, ChevronDown, TrendingUp, ArrowDownRight, ArrowUpRight, Search } from 'lucide-react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { apiService, type ComparisonData } from '../services/api';
 import { transformDateForRollingReturnsChart, formatChartDate } from '../utils/dateUtils';
 import RollingReturnsStats from '../components/RollingReturnsStats';
@@ -14,14 +16,17 @@ export const IndexComparison: React.FC = () => {
   const [availablePeriods] = useState<string[]>(['1Y', '3Y', '5Y', '7Y', '10Y']);
   const [availableIndices, setAvailableIndices] = useState<string[]>([]);
   const [selectedIndices, setSelectedIndices] = useState<string[]>([]);
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
   const [comparisonData, setComparisonData] = useState<ComparisonData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [benchmarkIndex, setBenchmarkIndex] = useState<string>('');
   const [showAlpha, setShowAlpha] = useState<boolean>(false);
+  const [showOnlyAlpha, setShowOnlyAlpha] = useState<boolean>(false);
   const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
-  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [inceptionDates, setInceptionDates] = useState<Record<string, string>>({});
+
   const colors = [
     '#3b82f6',
     '#ef4444',
@@ -73,10 +78,19 @@ export const IndexComparison: React.FC = () => {
       
       setLoading(true);
       try {
+        // Format dates to strings for the API call
+        const formatDateForApi = (date: Date | null): string | undefined => {
+          if (!date) return undefined;
+          const mm = String(date.getMonth() + 1).padStart(2, '0');
+          const dd = String(date.getDate()).padStart(2, '0');
+          const yyyy = date.getFullYear();
+          return `${mm}/${dd}/${yyyy}`;
+        };
+        
         const data = await apiService.compareRollingReturns(
           selectedIndices, 
-          startDate || undefined, 
-          endDate || undefined
+          startDate ? formatDateForApi(startDate) : undefined, 
+          endDate ? formatDateForApi(endDate) : undefined
         );
         setComparisonData(data);
       } catch (error) {
@@ -98,6 +112,14 @@ export const IndexComparison: React.FC = () => {
     const refreshedData = { ...comparisonData };
     setComparisonData(refreshedData);
   }, [benchmarkIndex]);
+
+  useEffect(() => {
+    const fetchInceptionDates = async () => {
+      const dates = await apiService.getInceptionDates();
+      setInceptionDates(dates);
+    };
+    fetchInceptionDates();
+  }, []);
 
   // Transform data for line chart
   const getLineData = () => {
@@ -332,44 +354,68 @@ export const IndexComparison: React.FC = () => {
           {/* Index Selection */}
           <div>
             <h3 className="text-lg font-semibold mb-4 text-shadow-sm">Select Indices (Max 3)</h3>
+            <div className="mb-4">
+              <div className="relative">
+                <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search indices..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 pr-4 py-2 w-full glassmorphic-light rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
             <div className="space-y-2 max-h-60 overflow-y-auto">
-              {availableIndices.map(index => (
-                <div 
-                  key={index}
-                  className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all duration-300 ${
-                    selectedIndices.includes(index) 
-                      ? 'glassmorphic-light border-glass' 
-                      : 'bg-opacity-30 backdrop-blur-sm hover:bg-opacity-50'
-                  }`}
-                  onClick={() => toggleIndexSelection(index)}
-                >
-                  <div className="flex items-center">
-                    <div 
-                      className={`w-4 h-4 rounded-full mr-3 ${
-                        selectedIndices.includes(index) 
-                          ? 'bg-indigo-500' 
-                          : 'bg-gray-300'
-                      }`}
-                    />
-                    <span className="text-sm font-medium">{index}</span>
+              {availableIndices
+                .filter(index => 
+                  index.toLowerCase().includes(searchQuery.toLowerCase())
+                )
+                .map(index => (
+                  <div 
+                    key={index}
+                    className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all duration-300 ${
+                      selectedIndices.includes(index) 
+                        ? 'glassmorphic-light border-glass' 
+                        : 'bg-opacity-30 backdrop-blur-sm hover:bg-opacity-50'
+                    }`}
+                    onClick={() => toggleIndexSelection(index)}
+                  >
+                    <div className="flex items-center">
+                      <div 
+                        className={`w-4 h-4 rounded-full mr-3 ${
+                          selectedIndices.includes(index) 
+                            ? 'bg-indigo-500' 
+                            : 'bg-gray-300'
+                        }`}
+                      />
+                      <span className="text-sm font-medium flex flex-col">
+                        {index}
+                        {inceptionDates[index] && (
+                          <span className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                            <Calendar size={12} className="inline-block" />
+                            Since {formatDate(inceptionDates[index])}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    {selectedIndices.includes(index) && (
+                      <button 
+                        className={`px-2 py-1 text-xs rounded transition-all duration-300 ${
+                          benchmarkIndex === index 
+                            ? 'bg-green-100 bg-opacity-70 text-green-800 backdrop-blur-sm'
+                            : 'bg-gray-100 bg-opacity-50 text-gray-800 hover:bg-green-100 hover:bg-opacity-70 hover:text-green-800'
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setBenchmark(index);
+                        }}
+                      >
+                        {benchmarkIndex === index ? 'Benchmark' : 'Set as Benchmark'}
+                      </button>
+                    )}
                   </div>
-                  {selectedIndices.includes(index) && (
-                    <button 
-                      className={`px-2 py-1 text-xs rounded transition-all duration-300 ${
-                        benchmarkIndex === index 
-                          ? 'bg-green-100 bg-opacity-70 text-green-800 backdrop-blur-sm'
-                          : 'bg-gray-100 bg-opacity-50 text-gray-800 hover:bg-green-100 hover:bg-opacity-70 hover:text-green-800'
-                      }`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setBenchmark(index);
-                      }}
-                    >
-                      {benchmarkIndex === index ? 'Benchmark' : 'Set as Benchmark'}
-                    </button>
-                  )}
-                </div>
-              ))}
+                ))}
             </div>
           </div>
 
@@ -380,21 +426,29 @@ export const IndexComparison: React.FC = () => {
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Start Date</label>
                 <div className="relative datepicker-wrapper">
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => {
-                      const newDate = e.target.value;
-                      // Ensure start date is not after end date
-                      if (!endDate || new Date(newDate) <= new Date(endDate)) {
-                        setStartDate(newDate);
+                  <DatePicker
+                    selected={startDate}
+                    onChange={(date: Date | null) => {
+                      if (!date || !endDate || date <= endDate) {
+                        setStartDate(date);
                       }
                     }}
+                    selectsStart
+                    startDate={startDate}
+                    endDate={endDate}
+                    minDate={new Date('2000-01-01')}
+                    maxDate={new Date()}
+                    dateFormat="MMMM d, yyyy"
+                    placeholderText="Select start date"
                     className="glassmorphic-light border-glass w-full p-2 rounded-md"
+                    showMonthDropdown
+                    showYearDropdown
+                    dropdownMode="select"
+                    filterDate={(date: Date) => date <= (endDate || new Date())}
                   />
                   {startDate && (
                     <button 
-                      onClick={() => setStartDate('')}
+                      onClick={() => setStartDate(null)}
                       className="absolute right-10 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                       title="Clear date"
                     >
@@ -408,21 +462,29 @@ export const IndexComparison: React.FC = () => {
               <div>
                 <label className="block text-sm text-gray-600 mb-1">End Date</label>
                 <div className="relative datepicker-wrapper">
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => {
-                      const newDate = e.target.value;
-                      // Ensure end date is not before start date
-                      if (!startDate || new Date(newDate) >= new Date(startDate)) {
-                        setEndDate(newDate);
+                  <DatePicker
+                    selected={endDate}
+                    onChange={(date: Date | null) => {
+                      if (!date || !startDate || date >= startDate) {
+                        setEndDate(date);
                       }
                     }}
+                    selectsEnd
+                    startDate={startDate}
+                    endDate={endDate}
+                    minDate={startDate || new Date('2000-01-01')}
+                    maxDate={new Date()}
+                    dateFormat="MMMM d, yyyy"
+                    placeholderText="Select end date"
                     className="glassmorphic-light border-glass w-full p-2 rounded-md"
+                    showMonthDropdown
+                    showYearDropdown
+                    dropdownMode="select"
+                    filterDate={(date: Date) => !startDate || date >= startDate}
                   />
                   {endDate && (
                     <button 
-                      onClick={() => setEndDate('')}
+                      onClick={() => setEndDate(null)}
                       className="absolute right-10 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                       title="Clear date"
                     >
@@ -437,8 +499,8 @@ export const IndexComparison: React.FC = () => {
                 <div className="mt-2">
                   <button
                     onClick={() => {
-                      setStartDate('');
-                      setEndDate('');
+                      setStartDate(null);
+                      setEndDate(null);
                     }}
                     className="text-sm text-indigo-600 hover:text-indigo-800 flex items-center"
                   >
@@ -468,17 +530,39 @@ export const IndexComparison: React.FC = () => {
               ))}
             </div>
             
-            <div className="mt-6 flex items-center">
-              <input
-                type="checkbox"
-                id="showAlpha"
-                checked={showAlpha}
-                onChange={(e) => setShowAlpha(e.target.checked)}
-                className="mr-2 h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
-              />
-              <label htmlFor="showAlpha" className="text-sm">
-                Show Alpha vs Benchmark
-              </label>
+            <div className="mt-6 space-y-4">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="showAlpha"
+                  checked={showAlpha}
+                  onChange={(e) => {
+                    setShowAlpha(e.target.checked);
+                    if (!e.target.checked) {
+                      setShowOnlyAlpha(false);
+                    }
+                  }}
+                  className="mr-2 h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                />
+                <label htmlFor="showAlpha" className="text-sm">
+                  Show Alpha vs Benchmark
+                </label>
+              </div>
+              
+              {showAlpha && (
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="showOnlyAlpha"
+                    checked={showOnlyAlpha}
+                    onChange={(e) => setShowOnlyAlpha(e.target.checked)}
+                    className="mr-2 h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                  />
+                  <label htmlFor="showOnlyAlpha" className="text-sm">
+                    Show Only Alpha Line
+                  </label>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -525,6 +609,7 @@ export const IndexComparison: React.FC = () => {
                     />
                   </XAxis>
                   <YAxis
+                    yAxisId="left"
                     domain={['auto', 'auto']}
                     padding={{ top: 20, bottom: 20 }}
                     allowDataOverflow={false}
@@ -537,6 +622,23 @@ export const IndexComparison: React.FC = () => {
                       style={{ textAnchor: 'middle', fill: '#666' }} 
                     />
                   </YAxis>
+                  {showAlpha && (
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      domain={['auto', 'auto']}
+                      padding={{ top: 20, bottom: 20 }}
+                      allowDataOverflow={false}
+                      width={60}
+                    >
+                      <Label 
+                        value="Alpha (%)" 
+                        angle={90} 
+                        position="insideRight" 
+                        style={{ textAnchor: 'middle', fill: '#666' }} 
+                      />
+                    </YAxis>
+                  )}
                   <Tooltip 
                     content={<CustomTooltip />}
                     cursor={{stroke: 'rgba(0,0,0,0.2)', strokeWidth: 1, strokeDasharray: '5 5'}}
@@ -548,10 +650,10 @@ export const IndexComparison: React.FC = () => {
                     iconType="circle"
                     iconSize={8}
                   />
-                  <ReferenceLine y={0} stroke="rgba(0,0,0,0.2)" />
+                  <ReferenceLine y={0} stroke="rgba(0,0,0,0.2)" yAxisId="left" />
                   
                   {/* Render lines for each selected index */}
-                  {selectedIndices.map((index, i) => (
+                  {!showOnlyAlpha && selectedIndices.map((index, i) => (
                     <Line
                       key={index}
                       type="monotone"
@@ -563,6 +665,7 @@ export const IndexComparison: React.FC = () => {
                       connectNulls={true}
                       name={index}
                       isAnimationActive={false}
+                      yAxisId="left"
                     />
                   ))}
                   
@@ -572,12 +675,14 @@ export const IndexComparison: React.FC = () => {
                       key={`${index}_alpha`}
                       type="monotone"
                       dataKey={`${index}_alpha_vs_${benchmarkIndex}`}
-                      stroke={colors[i % colors.length]}
-                      strokeWidth={1.5}
-                      strokeOpacity={0.7}
+                      stroke="#FF0000"
+                      strokeWidth={2}
                       dot={false}
+                      activeDot={{ r: 6 }}
                       connectNulls={true}
-                      name={`${index} Alpha vs ${benchmarkIndex}`}
+                      name={`Alpha Line ${selectedIndices.indexOf(index) + 1}`}
+                      isAnimationActive={false}
+                      yAxisId="right"
                     />
                   ))}
                 </LineChart>
