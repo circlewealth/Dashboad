@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import sqlite3 from 'sqlite3';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import yahooFinance from 'yahoo-finance2';
 import { parse } from 'url';
@@ -28,6 +29,18 @@ app.get('/api/:endpoint', (req, res) => {
   const path = req.path.split('/');
   
   console.log(`Received request for ${req.path}`);
+
+  // Check if database connections are available
+  if (!indexDB || !returnsDB) {
+    console.error('Database connections not available');
+    return res.status(500).json({ 
+      error: 'Database connections not available', 
+      indexDBPath, 
+      returnsDBPath,
+      indexDBAvailable: !!indexDB,
+      returnsDBAvailable: !!returnsDB
+    });
+  }
 
   // Handle different endpoints
   switch (endpoint) {
@@ -59,21 +72,71 @@ app.get('/api/:endpoint', (req, res) => {
 });
 
 // Database connections
-const indexDB = new sqlite3.Database(path.join(__dirname, './database.db'), sqlite3.OPEN_READONLY, (err) => {
-  if (err) {
-    console.error('Error opening index database:', err.message);
-  } else {
-    console.log('Connected to the index database.');
-  }
-});
+// Try multiple possible locations for database files
+const possibleIndexDBPaths = [
+  path.join(__dirname, './database.db'),
+  path.join(__dirname, './dist/database.db'),
+  path.join(__dirname, '../database.db'),
+  './database.db'
+];
 
-const returnsDB = new sqlite3.Database(path.join(__dirname, './final.db'), sqlite3.OPEN_READONLY, (err) => {
-  if (err) {
-    console.error('Error opening returns database:', err.message);
-  } else {
-    console.log('Connected to the returns database.');
+let indexDB = null;
+let indexDBPath = '';
+
+// Try each possible path until we find the database
+for (const dbPath of possibleIndexDBPaths) {
+  try {
+    console.log(`Trying to open index database at: ${dbPath}`);
+    if (fs.existsSync(dbPath)) {
+      indexDBPath = dbPath;
+      indexDB = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY, (err) => {
+        if (err) {
+          console.error(`Error opening index database at ${dbPath}:`, err.message);
+        } else {
+          console.log(`Connected to the index database at ${dbPath}`);
+        }
+      });
+      if (indexDB) break;
+    } else {
+      console.log(`Database file not found at: ${dbPath}`);
+    }
+  } catch (error) {
+    console.error(`Error checking database at ${dbPath}:`, error.message);
   }
-});
+}
+
+// Try multiple possible locations for returns database
+const possibleReturnsDBPaths = [
+  path.join(__dirname, './final.db'),
+  path.join(__dirname, './dist/final.db'),
+  path.join(__dirname, '../final.db'),
+  './final.db'
+];
+
+let returnsDB = null;
+let returnsDBPath = '';
+
+// Try each possible path until we find the database
+for (const dbPath of possibleReturnsDBPaths) {
+  try {
+    console.log(`Trying to open returns database at: ${dbPath}`);
+    if (fs.existsSync(dbPath)) {
+      returnsDBPath = dbPath;
+      returnsDB = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY, (err) => {
+        if (err) {
+          console.error(`Error opening returns database at ${dbPath}:`, err.message);
+        } else {
+          console.log(`Connected to the returns database at ${dbPath}`);
+        }
+      });
+      if (returnsDB) break;
+    } else {
+      console.log(`Database file not found at: ${dbPath}`);
+    }
+  } catch (error) {
+    console.error(`Error checking database at ${dbPath}:`, error.message);
+  }
+}
 
 // Helper function to parse percentage string to number
 function parsePercentage(percentStr) {
@@ -1576,7 +1639,14 @@ app.listen(PORT, '0.0.0.0', () => {
 
 // Close database connections on exit
 process.on('SIGINT', () => {
-  if (indexDB) indexDB.close();
-  if (returnsDB) returnsDB.close();
+  console.log('Closing database connections...');
+  if (indexDB) {
+    console.log(`Closing index database at: ${indexDBPath}`);
+    indexDB.close();
+  }
+  if (returnsDB) {
+    console.log(`Closing returns database at: ${returnsDBPath}`);
+    returnsDB.close();
+  }
   process.exit(0);
 });
