@@ -12,7 +12,7 @@ const isProduction = () => {
 
 // Use the local Express server for development and the deployed Render URL for production
 const API_URL = isProduction() 
-  ? 'https://circle-wealth-api.onrender.com/api' 
+  ? '/api' 
   : 'http://localhost:3001/api';
 
 export interface HistoricalDataPoint {
